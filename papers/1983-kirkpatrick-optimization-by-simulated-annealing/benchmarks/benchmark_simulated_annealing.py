@@ -32,6 +32,8 @@ from python.simulated_annealing import (  # noqa: E402
     rugged_landscape_energy,
 )
 
+GEOMETRIC_ALPHAS = [0.99, 0.95, 0.9, 0.8, 0.7, 0.65, 0.6, 0.5, 0.4, 0.3]
+
 
 def rolling_mean(values: list[float], window: int) -> list[float]:
     result: list[float] = []
@@ -318,6 +320,47 @@ def plot_parameter_sweep(rows, parameter_key: str, title: str, xlabel: str, file
     plt.close()
 
 
+def plot_geometric_alpha_study(rows, output_dir: Path) -> None:
+    x_values = [row["cooling_rate"] for row in rows]
+    best_energy = [row["mean_best_energy"] for row in rows]
+    best_energy_err = [row["stderr_best_energy"] for row in rows]
+    global_gap = [row["mean_best_energy_gap_to_global_minimum"] for row in rows]
+    global_gap_err = [row["stderr_best_energy_gap_to_global_minimum"] for row in rows]
+
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(9, 7.5), sharex=True)
+    ax1.errorbar(
+        x_values,
+        best_energy,
+        yerr=best_energy_err,
+        marker="o",
+        capsize=4,
+        linewidth=1.6,
+        color="#1f77b4",
+    )
+    ax1.set_ylabel("Final best energy")
+    ax1.set_title("Final Best Energy vs Geometric Schedule Alpha")
+    ax1.grid(True, alpha=0.3)
+
+    ax2.errorbar(
+        x_values,
+        global_gap,
+        yerr=global_gap_err,
+        marker="s",
+        capsize=4,
+        linewidth=1.6,
+        color="#d62728",
+    )
+    ax2.set_xlabel("Geometric schedule alpha")
+    ax2.set_ylabel("Gap to global optimum")
+    ax2.set_title("Gap to Global Optimum vs Geometric Schedule Alpha")
+    ax2.grid(True, alpha=0.3)
+
+    fig.suptitle("Geometric Schedule Alpha Study", y=0.98)
+    fig.tight_layout()
+    plt.savefig(output_dir / "final_energy_vs_geometric_schedule_alphas.png", dpi=160)
+    plt.close(fig)
+
+
 def plot_sa_vs_hill_summary(sa_results, hc_results, output_dir: Path) -> None:
     sa_best = [result.best_energy for result in sa_results]
     hc_best = [result.best_energy for result in hc_results]
@@ -364,7 +407,16 @@ def summarize_runs(results, label: str, global_minimum_energy: float) -> dict[st
     }
 
 
-def repeated_sa_sweep(param_name: str, values: list[float], *, repeats: int, steps: int, initial_state: float, base_seed: int):
+def repeated_sa_sweep(
+    param_name: str,
+    values: list[float],
+    *,
+    repeats: int,
+    steps: int,
+    initial_state: float,
+    base_seed: int,
+    global_minimum_energy: float,
+):
     rows = []
     for value_index, value in enumerate(values):
         results = []
@@ -389,6 +441,22 @@ def repeated_sa_sweep(param_name: str, values: list[float], *, repeats: int, ste
                 param_name: value,
                 "mean_best_energy": statistics.fmean(result.best_energy for result in results),
                 "std_best_energy": statistics.pstdev(result.best_energy for result in results),
+                "stderr_best_energy": (
+                    statistics.pstdev(result.best_energy for result in results) / math.sqrt(len(results))
+                    if len(results) > 1
+                    else 0.0
+                ),
+                "mean_best_energy_gap_to_global_minimum": statistics.fmean(
+                    result.best_energy - global_minimum_energy for result in results
+                ),
+                "stderr_best_energy_gap_to_global_minimum": (
+                    statistics.pstdev(
+                        result.best_energy - global_minimum_energy for result in results
+                    )
+                    / math.sqrt(len(results))
+                    if len(results) > 1
+                    else 0.0
+                ),
             }
         )
     return rows
@@ -467,11 +535,12 @@ def main() -> None:
 
     cooling_rows = repeated_sa_sweep(
         "cooling_rate",
-        [0.98, 0.985, 0.99, 0.993, 0.995, 0.997],
+        GEOMETRIC_ALPHAS,
         repeats=12,
         steps=args.steps,
         initial_state=args.initial_state,
         base_seed=args.seed + 1000,
+        global_minimum_energy=global_minimum_info["global_minimum_energy"],
     )
     init_temp_rows = repeated_sa_sweep(
         "initial_temperature",
@@ -480,6 +549,7 @@ def main() -> None:
         steps=args.steps,
         initial_state=args.initial_state,
         base_seed=args.seed + 3000,
+        global_minimum_energy=global_minimum_info["global_minimum_energy"],
     )
     step_size_rows = repeated_sa_sweep(
         "step_size",
@@ -488,6 +558,7 @@ def main() -> None:
         steps=args.steps,
         initial_state=args.initial_state,
         base_seed=args.seed + 5000,
+        global_minimum_energy=global_minimum_info["global_minimum_energy"],
     )
 
     plot_parameter_sweep(
@@ -498,6 +569,7 @@ def main() -> None:
         filename="final_best_energy_vs_cooling_rate.png",
         output_dir=output_dir,
     )
+    plot_geometric_alpha_study(cooling_rows, output_dir)
     plot_parameter_sweep(
         init_temp_rows,
         parameter_key="initial_temperature",

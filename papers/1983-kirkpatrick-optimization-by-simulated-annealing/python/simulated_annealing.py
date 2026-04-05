@@ -26,7 +26,7 @@ def geometric_schedule(initial_temperature: float, cooling_rate: float) -> Calla
         raise ValueError("cooling_rate must lie in (0, 1)")
 
     def schedule(step_index: int) -> float:
-        return initial_temperature * (cooling_rate ** step_index)
+        return max(initial_temperature * (cooling_rate ** step_index), 1.0e-12)
 
     return schedule
 
