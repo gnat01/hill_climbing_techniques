@@ -28,12 +28,18 @@ from python.simulated_annealing import (  # noqa: E402
     SimulatedAnnealingOptimizer,
     geometric_schedule,
     greedy_hill_climb,
+    logarithmic_schedule,
     random_walk_proposal,
     rugged_landscape_energy,
 )
 
 GEOMETRIC_ALPHAS = [0.99, 0.95, 0.9, 0.8, 0.7, 0.65, 0.6, 0.5, 0.4, 0.3]
 SWEEP_REPEATS = 60
+LOG_SCHEDULE_SETTINGS = [
+    {"label": "log c=3.5, k=e", "c": 3.5, "k": math.e},
+    {"label": "log c=7.0, k=e", "c": 7.0, "k": math.e},
+    {"label": "log c=14.0, k=e", "c": 14.0, "k": math.e},
+]
 
 
 def rolling_mean(values: list[float], window: int) -> list[float]:
@@ -71,6 +77,16 @@ def run_hill_climb(*, step_size: float, steps: int, seed: int, initial_state: fl
         steps=steps,
         rng=random.Random(seed),
     )
+
+
+def run_sa_with_schedule(*, schedule_fn, step_size: float, steps: int, seed: int, initial_state: float) -> object:
+    optimizer = SimulatedAnnealingOptimizer(
+        energy_fn=rugged_landscape_energy,
+        proposal_fn=random_walk_proposal(step_size=step_size),
+        schedule_fn=schedule_fn,
+        rng=random.Random(seed),
+    )
+    return optimizer.run(initial_state=initial_state, steps=steps)
 
 
 def save_csv(path: Path, rows: list[dict[str, float | int | str]]) -> None:
@@ -404,6 +420,143 @@ def plot_multi_alpha_best_energy_curves(steps: int, initial_state: float, base_s
     plt.close()
 
 
+def logarithmic_schedule_with_shift(c: float, k: float):
+    if c <= 0.0:
+        raise ValueError("c must be positive")
+    if k <= 1.0:
+        raise ValueError("k must exceed 1")
+
+    def schedule(step_index: int) -> float:
+        return max(c / math.log(step_index + k), 1.0e-12)
+
+    return schedule
+
+
+def plot_geometric_vs_log_temperature_curves(steps: int, output_dir: Path) -> None:
+    x_values = list(range(steps))
+    plt.figure(figsize=(9, 5.5))
+
+    geometric_reference = {
+        "geom alpha=0.99": geometric_schedule(initial_temperature=3.5, cooling_rate=0.99),
+        "geom alpha=0.95": geometric_schedule(initial_temperature=3.5, cooling_rate=0.95),
+        "geom alpha=0.9": geometric_schedule(initial_temperature=3.5, cooling_rate=0.9),
+    }
+    for label, schedule in geometric_reference.items():
+        plt.plot(x_values, [schedule(i) for i in x_values], label=label)
+
+    for setting in LOG_SCHEDULE_SETTINGS:
+        schedule = logarithmic_schedule_with_shift(setting["c"], setting["k"])
+        plt.plot(x_values, [schedule(i) for i in x_values], linestyle="--", label=setting["label"])
+
+    plt.yscale("log")
+    plt.xlabel("Iteration")
+    plt.ylabel("Temperature")
+    plt.title("Geometric vs Logarithmic Temperature Schedules")
+    plt.grid(True, alpha=0.3)
+    plt.legend(fontsize=8, ncol=2)
+    plt.tight_layout()
+    plt.savefig(output_dir / "geometric_vs_logarithmic_temperature_curves.png", dpi=160)
+    plt.close()
+
+
+def run_logarithmic_schedule_sweep(*, steps: int, initial_state: float, base_seed: int, global_minimum_energy: float):
+    rows = []
+    for index, setting in enumerate(LOG_SCHEDULE_SETTINGS):
+        results = []
+        schedule = logarithmic_schedule_with_shift(setting["c"], setting["k"])
+        for repeat in range(SWEEP_REPEATS):
+            result = run_sa_with_schedule(
+                schedule_fn=schedule,
+                step_size=0.6,
+                steps=steps,
+                seed=base_seed + 100 * index + repeat,
+                initial_state=initial_state,
+            )
+            results.append(result)
+
+        best_energies = [result.best_energy for result in results]
+        rows.append(
+            {
+                "schedule_label": setting["label"],
+                "c": setting["c"],
+                "k": setting["k"],
+                "mean_best_energy": statistics.fmean(best_energies),
+                "std_best_energy": statistics.pstdev(best_energies),
+                "stderr_best_energy": statistics.pstdev(best_energies) / math.sqrt(len(best_energies)),
+                "mean_best_energy_gap_to_global_minimum": statistics.fmean(
+                    energy - global_minimum_energy for energy in best_energies
+                ),
+                "mean_acceptance_rate": statistics.fmean(result.acceptance_rate for result in results),
+            }
+        )
+    return rows
+
+
+def plot_logarithmic_schedule_summary(rows, output_dir: Path) -> None:
+    x_positions = list(range(len(rows)))
+    labels = [row["schedule_label"] for row in rows]
+    mean_best = [row["mean_best_energy"] for row in rows]
+    stderr_best = [row["stderr_best_energy"] for row in rows]
+    mean_gap = [row["mean_best_energy_gap_to_global_minimum"] for row in rows]
+
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(9, 7), sharex=True)
+    ax1.errorbar(x_positions, mean_best, yerr=stderr_best, fmt="o", capsize=5, color="#1f77b4")
+    ax1.set_ylabel("Mean final best energy")
+    ax1.set_title("Logarithmic Schedule Performance")
+    ax1.grid(True, alpha=0.3)
+
+    ax2.plot(x_positions, mean_gap, marker="s", color="#d62728")
+    ax2.set_xticks(x_positions, labels, rotation=15, ha="right")
+    ax2.set_ylabel("Gap to global optimum")
+    ax2.set_xlabel("Logarithmic schedule setting")
+    ax2.grid(True, alpha=0.3)
+
+    fig.tight_layout()
+    plt.savefig(output_dir / "logarithmic_schedule_summary.png", dpi=160)
+    plt.close(fig)
+
+
+def plot_geometric_vs_log_best_energy_curves(steps: int, initial_state: float, base_seed: int, output_dir: Path) -> None:
+    x_values = list(range(steps))
+    plt.figure(figsize=(9, 5.5))
+
+    geometric_reference = [0.99, 0.95, 0.9]
+    for index, alpha in enumerate(geometric_reference):
+        result = run_sa(
+            initial_temperature=3.5,
+            cooling_rate=alpha,
+            step_size=0.6,
+            steps=steps,
+            seed=base_seed + index,
+            initial_state=initial_state,
+        )
+        plt.plot(x_values, [step.best_energy for step in result.trajectory], label=f"geom alpha={alpha}")
+
+    for index, setting in enumerate(LOG_SCHEDULE_SETTINGS):
+        result = run_sa_with_schedule(
+            schedule_fn=logarithmic_schedule_with_shift(setting["c"], setting["k"]),
+            step_size=0.6,
+            steps=steps,
+            seed=base_seed + 50 + index,
+            initial_state=initial_state,
+        )
+        plt.plot(
+            x_values,
+            [step.best_energy for step in result.trajectory],
+            linestyle="--",
+            label=setting["label"],
+        )
+
+    plt.xlabel("Iteration")
+    plt.ylabel("Best-so-far energy")
+    plt.title("Geometric vs Logarithmic Best-Energy Traces")
+    plt.grid(True, alpha=0.3)
+    plt.legend(fontsize=8, ncol=2)
+    plt.tight_layout()
+    plt.savefig(output_dir / "geometric_vs_logarithmic_best_energy_traces.png", dpi=160)
+    plt.close()
+
+
 def plot_sa_vs_hill_summary(sa_results, hc_results, output_dir: Path) -> None:
     sa_best = [result.best_energy for result in sa_results]
     hc_best = [result.best_energy for result in hc_results]
@@ -615,6 +768,8 @@ def main() -> None:
     plot_geometric_alpha_study(cooling_rows, output_dir)
     plot_multi_alpha_temperature_curves(args.steps, output_dir)
     plot_multi_alpha_best_energy_curves(args.steps, args.initial_state, args.seed + 8000, output_dir)
+    plot_geometric_vs_log_temperature_curves(args.steps, output_dir)
+    plot_geometric_vs_log_best_energy_curves(args.steps, args.initial_state, args.seed + 9000, output_dir)
     plot_parameter_sweep(
         init_temp_rows,
         parameter_key="initial_temperature",
@@ -631,6 +786,13 @@ def main() -> None:
         filename="final_best_energy_vs_step_size.png",
         output_dir=output_dir,
     )
+    log_schedule_rows = run_logarithmic_schedule_sweep(
+        steps=args.steps,
+        initial_state=args.initial_state,
+        base_seed=args.seed + 10000,
+        global_minimum_energy=global_minimum_info["global_minimum_energy"],
+    )
+    plot_logarithmic_schedule_summary(log_schedule_rows, output_dir)
 
     trajectory_rows = [
         {
@@ -648,6 +810,7 @@ def main() -> None:
     save_csv(output_dir / "cooling_rate_sweep.csv", cooling_rows)
     save_csv(output_dir / "initial_temperature_sweep.csv", init_temp_rows)
     save_csv(output_dir / "step_size_sweep.csv", step_size_rows)
+    save_csv(output_dir / "logarithmic_schedule_sweep.csv", log_schedule_rows)
     save_csv(output_dir / "uphill_fraction_by_temperature_band.csv", uphill_fraction_rows)
     save_csv(output_dir / "global_minimum_reference.csv", [global_minimum_info])
     summary_rows = [
