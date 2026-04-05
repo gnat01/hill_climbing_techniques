@@ -33,6 +33,7 @@ from python.simulated_annealing import (  # noqa: E402
 )
 
 GEOMETRIC_ALPHAS = [0.99, 0.95, 0.9, 0.8, 0.7, 0.65, 0.6, 0.5, 0.4, 0.3]
+SWEEP_REPEATS = 60
 
 
 def rolling_mean(values: list[float], window: int) -> list[float]:
@@ -361,6 +362,48 @@ def plot_geometric_alpha_study(rows, output_dir: Path) -> None:
     plt.close(fig)
 
 
+def plot_multi_alpha_temperature_curves(steps: int, output_dir: Path) -> None:
+    plt.figure(figsize=(9, 5.5))
+    x_values = list(range(steps))
+    for alpha in GEOMETRIC_ALPHAS:
+        schedule = geometric_schedule(initial_temperature=3.5, cooling_rate=alpha)
+        temperatures = [schedule(step_index) for step_index in x_values]
+        plt.plot(x_values, temperatures, label=f"alpha={alpha}")
+    plt.yscale("log")
+    plt.xlabel("Iteration")
+    plt.ylabel("Temperature")
+    plt.title("Temperature vs Iteration for Geometric Schedule Alphas")
+    plt.grid(True, alpha=0.3)
+    plt.legend(ncol=2, fontsize=8)
+    plt.tight_layout()
+    plt.savefig(output_dir / "temperature_vs_iteration_all_geometric_alphas.png", dpi=160)
+    plt.close()
+
+
+def plot_multi_alpha_best_energy_curves(steps: int, initial_state: float, base_seed: int, output_dir: Path) -> None:
+    plt.figure(figsize=(9, 5.5))
+    x_values = list(range(steps))
+    for index, alpha in enumerate(GEOMETRIC_ALPHAS):
+        result = run_sa(
+            initial_temperature=3.5,
+            cooling_rate=alpha,
+            step_size=0.6,
+            steps=steps,
+            seed=base_seed + index,
+            initial_state=initial_state,
+        )
+        best_energies = [step.best_energy for step in result.trajectory]
+        plt.plot(x_values, best_energies, label=f"alpha={alpha}")
+    plt.xlabel("Iteration")
+    plt.ylabel("Best-so-far energy")
+    plt.title("Best Energy vs Iteration for Geometric Schedule Alphas")
+    plt.grid(True, alpha=0.3)
+    plt.legend(ncol=2, fontsize=8)
+    plt.tight_layout()
+    plt.savefig(output_dir / "best_energy_vs_iteration_all_geometric_alphas.png", dpi=160)
+    plt.close()
+
+
 def plot_sa_vs_hill_summary(sa_results, hc_results, output_dir: Path) -> None:
     sa_best = [result.best_energy for result in sa_results]
     hc_best = [result.best_energy for result in hc_results]
@@ -536,7 +579,7 @@ def main() -> None:
     cooling_rows = repeated_sa_sweep(
         "cooling_rate",
         GEOMETRIC_ALPHAS,
-        repeats=12,
+        repeats=SWEEP_REPEATS,
         steps=args.steps,
         initial_state=args.initial_state,
         base_seed=args.seed + 1000,
@@ -545,7 +588,7 @@ def main() -> None:
     init_temp_rows = repeated_sa_sweep(
         "initial_temperature",
         [0.8, 1.2, 2.0, 3.5, 5.0, 7.0],
-        repeats=12,
+        repeats=SWEEP_REPEATS,
         steps=args.steps,
         initial_state=args.initial_state,
         base_seed=args.seed + 3000,
@@ -554,7 +597,7 @@ def main() -> None:
     step_size_rows = repeated_sa_sweep(
         "step_size",
         [0.15, 0.3, 0.45, 0.6, 0.9, 1.2],
-        repeats=12,
+        repeats=SWEEP_REPEATS,
         steps=args.steps,
         initial_state=args.initial_state,
         base_seed=args.seed + 5000,
@@ -570,6 +613,8 @@ def main() -> None:
         output_dir=output_dir,
     )
     plot_geometric_alpha_study(cooling_rows, output_dir)
+    plot_multi_alpha_temperature_curves(args.steps, output_dir)
+    plot_multi_alpha_best_energy_curves(args.steps, args.initial_state, args.seed + 8000, output_dir)
     plot_parameter_sweep(
         init_temp_rows,
         parameter_key="initial_temperature",
