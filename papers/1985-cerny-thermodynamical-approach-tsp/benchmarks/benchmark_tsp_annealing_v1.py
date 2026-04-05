@@ -212,16 +212,16 @@ def plot_move_type_summary(rows, output_dir: Path) -> None:
     improvement = [row["mean_percent_improvement_over_initial"] for row in rows]
 
     fig, axes = plt.subplots(3, 1, figsize=(8, 10), sharex=True)
-    axes[0].errorbar(x, best, yerr=err, fmt="o", capsize=5)
+    axes[0].errorbar(x, best, yerr=err, fmt="o", capsize=5, markersize=7, linewidth=1.5)
     axes[0].set_ylabel("Mean best route length")
     axes[0].set_title("Move-Type Comparison on Harder TSP Instance")
     axes[0].grid(True, alpha=0.3)
 
-    axes[1].bar(x, gap)
+    axes[1].plot(x, gap, marker="o", linewidth=1.5, color="#d62728")
     axes[1].set_ylabel("Gap to exact optimum")
     axes[1].grid(True, alpha=0.3)
 
-    axes[2].bar(x, improvement)
+    axes[2].plot(x, improvement, marker="o", linewidth=1.5, color="#2ca02c")
     axes[2].set_xticks(x, labels)
     axes[2].set_ylabel("% improvement over initial")
     axes[2].grid(True, alpha=0.3)
