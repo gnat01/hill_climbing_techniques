@@ -93,3 +93,48 @@ Defaults:
 - `V0` is the original first working benchmark
 - `V1` keeps `V0` intact but uses a deliberately bad initial tour and repeated-run statistics as the primary result
 - if you want the more defensible paper-style result, use `V1`
+
+## Empirical Basin Benchmark
+
+Script:
+
+- [benchmarks/benchmark_tsp_empirical_basin.py](/Users/gn/work/learn/python/hill_climbing_techniques/papers/1985-cerny-thermodynamical-approach-tsp/benchmarks/benchmark_tsp_empirical_basin.py)
+
+What it does:
+
+- fixes the harder `V1` TSP instance
+- samples many distinct initial tours
+- runs simulated annealing repeatedly from each start for each move type:
+  - `swap`
+  - `insert`
+  - `two_opt`
+- estimates the empirical basin of attraction for each move strategy
+
+Run:
+
+```bash
+python papers/1985-cerny-thermodynamical-approach-tsp/benchmarks/benchmark_tsp_empirical_basin.py \
+  --steps 800 \
+  --initial-temperature 6.0 \
+  --alpha 0.997 \
+  --num-starts 60 \
+  --runs-per-start 30 \
+  --success-epsilon 0.0 \
+  --seed 123
+```
+
+Flags:
+
+- `--steps`
+- `--initial-temperature`
+- `--alpha`
+- `--num-starts`
+- `--runs-per-start`
+  Clamped into `[10, 150]`.
+- `--success-epsilon`
+- `--seed`
+- `--output-dir`
+
+Default output location:
+
+- [benchmarks/empirical_basin_outputs](/Users/gn/work/learn/python/hill_climbing_techniques/papers/1985-cerny-thermodynamical-approach-tsp/benchmarks/empirical_basin_outputs)
