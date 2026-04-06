@@ -1,0 +1,7 @@
+example,noise_level,noisy_accuracy,fixed_gibbs_accuracy,annealed_accuracy
+square,0.05,0.9505,0.9971,0.9989
+square,0.1,0.9044,0.9916,0.9963
+square,0.15,0.8512,0.985,0.9936
+square,0.2,0.8002,0.9768,0.9846
+square,0.3,0.7006,0.9156,0.932
+square,0.4,0.5908,0.7379,0.7459

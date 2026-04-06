@@ -1,0 +1,6 @@
+example,noisy_accuracy,fixed_gibbs_accuracy,annealed_accuracy,fixed_gibbs_final_energy,annealed_final_energy
+square,0.6999,0.9142,0.9432,-29704.4,-30342.4
+x_shape,0.6995,0.8969,0.9182,-29748.4,-30349.0
+frame,0.6958,0.8778,0.8985,-29178.600000000006,-29759.4
+plus,0.7041,0.9104,0.9321,-30107.000000000004,-30657.0
+disk,0.6982,0.913,0.9346,-29935.4,-30463.4
