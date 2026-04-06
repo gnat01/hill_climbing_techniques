@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import json
 import os
 import sys
 from pathlib import Path
@@ -50,6 +51,11 @@ def save_csv(path: Path, rows: list[dict[str, float | int | str]]) -> None:
         writer = csv.DictWriter(handle, fieldnames=list(rows[0].keys()))
         writer.writeheader()
         writer.writerows(rows)
+
+
+def save_json(path: Path, payload: dict[str, object]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
 
 def load_and_binarize_image(path: Path, max_dim: int | None, threshold: int | None, invert: bool) -> tuple[np.ndarray, np.ndarray, dict[str, int]]:
@@ -197,6 +203,25 @@ def main() -> None:
         }
     ]
     save_csv(output_dir / f"{stem}_summary.csv", rows)
+    save_json(
+        output_dir / f"{stem}_config.json",
+        {
+            "input_image": str(args.input_image),
+            "max_dim": args.max_dim,
+            "threshold": args.threshold,
+            "invert": args.invert,
+            "noise": args.noise,
+            "sweeps": args.sweeps,
+            "fixed_temperature": args.fixed_temperature,
+            "anneal_initial_temperature": args.anneal_initial_temperature,
+            "anneal_alpha": args.anneal_alpha,
+            "eta": args.eta,
+            "coupling": args.coupling,
+            "derived_width": meta["width"],
+            "derived_height": meta["height"],
+            "derived_threshold": meta["threshold"],
+        },
+    )
 
     print("input_image\twidth\theight\tthreshold\tnoise\tsweeps\tnoisy_accuracy\tfixed_gibbs_accuracy\tannealed_accuracy")
     row = rows[0]

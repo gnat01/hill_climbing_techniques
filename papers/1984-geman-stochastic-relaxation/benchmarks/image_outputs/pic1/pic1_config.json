@@ -1,0 +1,16 @@
+{
+  "input_image": "papers/1984-geman-stochastic-relaxation/input_images/pic1.jpeg",
+  "max_dim": 128,
+  "threshold": null,
+  "invert": false,
+  "noise": 0.2,
+  "sweeps": 40,
+  "fixed_temperature": 1.2,
+  "anneal_initial_temperature": 2.8,
+  "anneal_alpha": 0.95,
+  "eta": 2.2,
+  "coupling": 1.1,
+  "derived_width": 128,
+  "derived_height": 70,
+  "derived_threshold": 126
+}

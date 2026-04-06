@@ -1,2 +1,2 @@
 input_image,width,height,threshold,noise,sweeps,noisy_accuracy,fixed_gibbs_accuracy,annealed_accuracy
-papers/1984-geman-stochastic-relaxation/input_images/crisscross.png,128,57,140,0.2,300,0.7972861842105263,0.6606359649122807,0.6567982456140351
+papers/1984-geman-stochastic-relaxation/input_images/crisscross.png,128,57,130,0.2,40,0.7972861842105263,0.6676260964912281,0.659265350877193

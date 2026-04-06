@@ -1,0 +1,2 @@
+input_image,width,height,threshold,noise,sweeps,noisy_accuracy,fixed_gibbs_accuracy,annealed_accuracy
+papers/1984-geman-stochastic-relaxation/input_images/swirls.png,128,71,124,0.2,40,0.7980853873239436,0.7378961267605634,0.7326144366197183
