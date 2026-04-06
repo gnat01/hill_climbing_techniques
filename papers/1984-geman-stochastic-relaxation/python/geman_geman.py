@@ -183,6 +183,66 @@ class GibbsImageRestorer:
         )
 
 
+class DeterministicImageRestorer:
+    """Iterated conditional modes style deterministic local descent."""
+
+    def __init__(
+        self,
+        observation: Array,
+        eta: float,
+        coupling: float,
+        rng: np.random.Generator | None = None,
+    ) -> None:
+        self.observation = observation.astype(np.int8)
+        self.eta = eta
+        self.coupling = coupling
+        self.rng = rng if rng is not None else np.random.default_rng()
+
+    def run(self, initial_state: Array, sweeps: int, truth: Array | None = None) -> RestorationResult:
+        if sweeps < 0:
+            raise ValueError("sweeps must be non-negative")
+        state = initial_state.astype(np.int8).copy()
+        trajectory: list[RestorationStep] = []
+        height, width = state.shape
+
+        for sweep_index in range(sweeps):
+            changed_pixels = 0
+            flat_indices = self.rng.permutation(height * width)
+            for flat_idx in flat_indices:
+                row = int(flat_idx // width)
+                col = int(flat_idx % width)
+                field = local_field(state, self.observation, row, col, self.eta, self.coupling)
+                if field > 0:
+                    new_value = 1
+                elif field < 0:
+                    new_value = -1
+                else:
+                    new_value = int(state[row, col])
+                if new_value != int(state[row, col]):
+                    changed_pixels += 1
+                state[row, col] = new_value
+
+            accuracy = pixel_accuracy(state, truth) if truth is not None else float("nan")
+            trajectory.append(
+                RestorationStep(
+                    step_index=sweep_index,
+                    temperature=0.0,
+                    energy=posterior_energy(state, self.observation, self.eta, self.coupling),
+                    pixel_accuracy=accuracy,
+                    changed_pixels=changed_pixels,
+                )
+            )
+
+        final_accuracy = pixel_accuracy(state, truth) if truth is not None else float("nan")
+        return RestorationResult(
+            initial_state=initial_state.copy(),
+            final_state=state.copy(),
+            final_energy=posterior_energy(state, self.observation, self.eta, self.coupling),
+            final_accuracy=final_accuracy,
+            trajectory=tuple(trajectory),
+        )
+
+
 def fixed_temperature_schedule(temperature: float) -> Callable[[int], float]:
     if temperature <= 0.0:
         raise ValueError("temperature must be positive")

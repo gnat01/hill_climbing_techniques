@@ -1,4 +1,5 @@
 from .geman_geman import (
+    DeterministicImageRestorer,
     GibbsImageRestorer,
     RestorationResult,
     RestorationStep,
@@ -20,6 +21,7 @@ __all__ = [
     "RestorationStep",
     "all_examples",
     "conditional_probability_positive",
+    "DeterministicImageRestorer",
     "fixed_temperature_schedule",
     "flip_noise",
     "from_spin",
