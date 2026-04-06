@@ -1,2 +1,0 @@
-input_image,width,height,threshold,noise,sweeps,noisy_accuracy,fixed_gibbs_accuracy,annealed_accuracy
-papers/1984-geman-stochastic-relaxation/input_images/diag_stripes.png,128,64,139,0.2,40,0.798583984375,0.8853759765625,0.8973388671875
