@@ -204,3 +204,59 @@ Flags:
 Default output location:
 
 - [benchmarks/f5_multi_start_outputs](/Users/gn/work/learn/python/hill_climbing_techniques/papers/1983-kirkpatrick-optimization-by-simulated-annealing/benchmarks/f5_multi_start_outputs)
+
+## Empirical SA Basin Benchmark
+
+Script:
+
+- [benchmarks/benchmark_simulated_annealing_empirical_basin.py](/Users/gn/work/learn/python/hill_climbing_techniques/papers/1983-kirkpatrick-optimization-by-simulated-annealing/benchmarks/benchmark_simulated_annealing_empirical_basin.py)
+
+What it does:
+
+- freezes one `f5` landscape realization
+- runs simulated annealing repeatedly from many initial states
+- estimates the empirical basin of attraction of SA
+- reports hit probability and mean gap to optimum as functions of the initial state
+
+Run:
+
+```bash
+python papers/1983-kirkpatrick-optimization-by-simulated-annealing/benchmarks/benchmark_simulated_annealing_empirical_basin.py \
+  --M 120 \
+  --k 20 \
+  --c 0.4 \
+  --R 60 \
+  --steps 8000 \
+  --initial-temperature 4000 \
+  --alpha 0.98 \
+  --runs-per-start 30 \
+  --start-step 1 \
+  --success-epsilon 0.0 \
+  --seed 123 \
+  --gaussian-noise \
+  --noise-mean 40 \
+  --noise-sd 10
+```
+
+Flags:
+
+- `--M`
+- `--k`
+- `--c`
+- `--R`
+- `--steps`
+- `--initial-temperature`
+- `--alpha`
+- `--runs-per-start`
+  Clamped into `[10, 150]`.
+- `--start-step`
+- `--success-epsilon`
+- `--seed`
+- `--gaussian-noise`
+- `--noise-mean`
+- `--noise-sd`
+- `--output-dir`
+
+Default output location:
+
+- [benchmarks/f5_empirical_basin_outputs](/Users/gn/work/learn/python/hill_climbing_techniques/papers/1983-kirkpatrick-optimization-by-simulated-annealing/benchmarks/f5_empirical_basin_outputs)
