@@ -23,6 +23,33 @@ def from_spin(image: Array) -> Array:
     return ((image > 0).astype(np.uint8)).copy()
 
 
+def otsu_threshold_from_grayscale(grayscale: Array) -> int:
+    """Compute an Otsu threshold for a uint8 grayscale image."""
+    hist = np.bincount(grayscale.ravel(), minlength=256).astype(np.float64)
+    total = grayscale.size
+    sum_total = float(np.dot(np.arange(256), hist))
+    sum_background = 0.0
+    weight_background = 0.0
+    best_threshold = 127
+    best_between = -1.0
+
+    for threshold in range(256):
+        weight_background += hist[threshold]
+        if weight_background == 0:
+            continue
+        weight_foreground = total - weight_background
+        if weight_foreground == 0:
+            break
+        sum_background += threshold * hist[threshold]
+        mean_background = sum_background / weight_background
+        mean_foreground = (sum_total - sum_background) / weight_foreground
+        between = weight_background * weight_foreground * (mean_background - mean_foreground) ** 2
+        if between > best_between:
+            best_between = between
+            best_threshold = threshold
+    return int(best_threshold)
+
+
 def flip_noise(image: Array, flip_probability: float, rng: np.random.Generator) -> Array:
     if not 0.0 <= flip_probability <= 1.0:
         raise ValueError("flip_probability must lie in [0, 1]")

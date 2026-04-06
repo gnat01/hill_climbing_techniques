@@ -1,0 +1,2 @@
+input_image,width,height,threshold,noise,sweeps,noisy_accuracy,fixed_gibbs_accuracy,annealed_accuracy
+papers/1984-geman-stochastic-relaxation/input_images/pic1.jpeg,128,70,126,0.2,40,0.7979910714285714,0.8569196428571428,0.8647321428571428
