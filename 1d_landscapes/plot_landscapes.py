@@ -26,6 +26,7 @@ import argparse
 import csv
 import math
 import os
+import random
 from pathlib import Path
 
 MPL_DIR = Path(__file__).resolve().parent / ".mplconfig"
@@ -83,8 +84,23 @@ def landscape_value(x: int, M: int, k: int, c: float, R: int, family: str) -> in
     raise ValueError(f"Unsupported family: {family}")
 
 
-def generate_landscape(M: int, k: int, c: float, R: int, family: str) -> list[int]:
-    return [landscape_value(x, M=M, k=k, c=c, R=R, family=family) for x in range(M)]
+def generate_landscape(
+    M: int,
+    k: int,
+    c: float,
+    R: int,
+    family: str,
+    gaussian_noise: bool,
+    noise_mean: float,
+    noise_sd: float,
+) -> tuple[list[int], list[float]]:
+    base_values = [landscape_value(x, M=M, k=k, c=c, R=R, family=family) for x in range(M)]
+    if not gaussian_noise:
+        return base_values, [0.0] * M
+
+    noise_values = [random.gauss(noise_mean, noise_sd) for _ in range(M)]
+    noisy_values = [value + noise for value, noise in zip(base_values, noise_values)]
+    return noisy_values, noise_values
 
 
 def save_csv(path: Path, rows: list[dict[str, float | int]]) -> None:
@@ -99,9 +115,28 @@ def slugify_float(value: float) -> str:
     return str(value).replace(".", "p")
 
 
-def plot_single_landscape(M: int, k: int, c: float, R: int, family: str, output_dir: Path) -> None:
+def plot_single_landscape(
+    M: int,
+    k: int,
+    c: float,
+    R: int,
+    family: str,
+    output_dir: Path,
+    gaussian_noise: bool,
+    noise_mean: float,
+    noise_sd: float,
+) -> None:
     xs = list(range(M))
-    ys = generate_landscape(M, k, c, R, family)
+    ys, noise_values = generate_landscape(
+        M,
+        k,
+        c,
+        R,
+        family,
+        gaussian_noise=gaussian_noise,
+        noise_mean=noise_mean,
+        noise_sd=noise_sd,
+    )
 
     plt.figure(figsize=(10, 4.5))
     plt.step(xs, ys, where="mid", linewidth=1.8)
@@ -112,12 +147,18 @@ def plot_single_landscape(M: int, k: int, c: float, R: int, family: str, output_
         plt.axvline(R, color="tab:red", linestyle=":", alpha=0.6, label=f"R={R}")
     plt.xlabel("x")
     plt.ylabel("f(x)")
-    plt.title(f"{family_title(family)}: M={M}, k={k}, c={c}, R={R}")
+    title = f"{family_title(family)}: M={M}, k={k}, c={c}, R={R}"
+    if gaussian_noise:
+        title += f", noise=N({noise_mean}, {noise_sd})"
+    plt.title(title)
     plt.grid(True, alpha=0.3)
     if family != "base":
         plt.legend()
     plt.tight_layout()
-    filename = f"{family}_landscape_M{M}_k{k}_c{slugify_float(c)}_R{R}.png"
+    noise_suffix = ""
+    if gaussian_noise:
+        noise_suffix = f"_noise_mu{slugify_float(noise_mean)}_sd{slugify_float(noise_sd)}"
+    filename = f"{family}_landscape_M{M}_k{k}_c{slugify_float(c)}_R{R}{noise_suffix}.png"
     plt.savefig(output_dir / filename, dpi=160)
     plt.close()
 
@@ -125,20 +166,35 @@ def plot_single_landscape(M: int, k: int, c: float, R: int, family: str, output_
         {
             "x": x,
             "f_x": y,
+            "base_f_x": y - noise,
+            "noise": noise,
             "family": family,
             "formula": family_formula(family),
             "M": M,
             "k": k,
             "c": c,
             "R": R,
+            "gaussian_noise": gaussian_noise,
+            "noise_mean": noise_mean if gaussian_noise else 0.0,
+            "noise_sd": noise_sd if gaussian_noise else 0.0,
         }
-        for x, y in zip(xs, ys)
+        for x, y, noise in zip(xs, ys, noise_values)
     ]
-    csv_name = f"{family}_landscape_M{M}_k{k}_c{slugify_float(c)}_R{R}.csv"
+    csv_name = f"{family}_landscape_M{M}_k{k}_c{slugify_float(c)}_R{R}{noise_suffix}.csv"
     save_csv(output_dir / csv_name, rows)
 
 
-def plot_grid(M: int, ks: list[int], cs: list[float], R: int, family: str, output_dir: Path) -> None:
+def plot_grid(
+    M: int,
+    ks: list[int],
+    cs: list[float],
+    R: int,
+    family: str,
+    output_dir: Path,
+    gaussian_noise: bool,
+    noise_mean: float,
+    noise_sd: float,
+) -> None:
     fig, axes = plt.subplots(len(cs), len(ks), figsize=(4.2 * len(ks), 2.8 * len(cs)), sharex=True)
     if len(cs) == 1 and len(ks) == 1:
         axes = [[axes]]
@@ -151,7 +207,16 @@ def plot_grid(M: int, ks: list[int], cs: list[float], R: int, family: str, outpu
         for col_index, k in enumerate(ks):
             ax = axes[row_index][col_index]
             xs = list(range(M))
-            ys = generate_landscape(M, k, c, R, family)
+            ys, _ = generate_landscape(
+                M,
+                k,
+                c,
+                R,
+                family,
+                gaussian_noise=gaussian_noise,
+                noise_mean=noise_mean,
+                noise_sd=noise_sd,
+            )
             ax.step(xs, ys, where="mid", linewidth=1.4)
             ax.set_title(f"k={k}, c={c}")
             for boundary in range(k, M, k):
@@ -164,9 +229,15 @@ def plot_grid(M: int, ks: list[int], cs: list[float], R: int, family: str, outpu
             if col_index == 0:
                 ax.set_ylabel("f(x)")
 
-    fig.suptitle(f"{family_title(family)} grid for M={M}, R={R}", y=0.995)
+    title = f"{family_title(family)} grid for M={M}, R={R}"
+    if gaussian_noise:
+        title += f", noise=N({noise_mean}, {noise_sd})"
+    fig.suptitle(title, y=0.995)
     fig.tight_layout()
-    fig.savefig(output_dir / f"{family}_landscape_grid_M{M}_R{R}.png", dpi=160)
+    noise_suffix = ""
+    if gaussian_noise:
+        noise_suffix = f"_noise_mu{slugify_float(noise_mean)}_sd{slugify_float(noise_sd)}"
+    fig.savefig(output_dir / f"{family}_landscape_grid_M{M}_R{R}{noise_suffix}.png", dpi=160)
     plt.close(fig)
 
 
@@ -199,6 +270,29 @@ def parse_args() -> argparse.Namespace:
         help="Shift parameter for the shifted families.",
     )
     parser.add_argument(
+        "--gaussian-noise",
+        action="store_true",
+        help="Add independent Gaussian noise at each x value. If set, --noise-mean and --noise-sd are required.",
+    )
+    parser.add_argument(
+        "--noise-mean",
+        type=float,
+        default=None,
+        help="Mean of the Gaussian noise added pointwise when --gaussian-noise is enabled.",
+    )
+    parser.add_argument(
+        "--noise-sd",
+        type=float,
+        default=None,
+        help="Standard deviation of the Gaussian noise added pointwise when --gaussian-noise is enabled.",
+    )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=123,
+        help="Random seed used when Gaussian noise is enabled.",
+    )
+    parser.add_argument(
         "--output-dir",
         type=Path,
         default=Path(__file__).resolve().parent / "outputs",
@@ -214,6 +308,9 @@ def main() -> None:
     ks = [int(item.strip()) for item in args.ks.split(",") if item.strip()]
     cs = [float(item.strip()) for item in args.cs.split(",") if item.strip()]
     R = args.R
+    gaussian_noise = args.gaussian_noise
+    noise_mean = args.noise_mean
+    noise_sd = args.noise_sd
 
     if M <= 1:
         raise ValueError("M must be greater than 1")
@@ -222,15 +319,45 @@ def main() -> None:
     for k in ks:
         if k <= 0 or M % k != 0:
             raise ValueError(f"k={k} must be positive and divide M={M}")
+    if gaussian_noise and family != "f5":
+        raise ValueError("--gaussian-noise is currently supported only for --family f5")
+    if gaussian_noise and (noise_mean is None or noise_sd is None):
+        raise ValueError("--noise-mean and --noise-sd are required when --gaussian-noise is set")
+    if not gaussian_noise:
+        noise_mean = 0.0
+        noise_sd = 0.0
+    if noise_sd < 0:
+        raise ValueError("--noise-sd must be non-negative")
 
     output_dir = args.output_dir
     output_dir.mkdir(parents=True, exist_ok=True)
+    random.seed(args.seed)
 
     for c in cs:
         for k in ks:
-            plot_single_landscape(M, k, c, R, family, output_dir)
+            plot_single_landscape(
+                M,
+                k,
+                c,
+                R,
+                family,
+                output_dir,
+                gaussian_noise=gaussian_noise,
+                noise_mean=noise_mean,
+                noise_sd=noise_sd,
+            )
 
-    plot_grid(M, ks, cs, R, family, output_dir)
+    plot_grid(
+        M,
+        ks,
+        cs,
+        R,
+        family,
+        output_dir,
+        gaussian_noise=gaussian_noise,
+        noise_mean=noise_mean,
+        noise_sd=noise_sd,
+    )
     print(f"Wrote outputs to: {output_dir}")
 
 

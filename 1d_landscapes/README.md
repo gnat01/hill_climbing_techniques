@@ -39,6 +39,10 @@ Optional flags:
 - `--ks`
 - `--cs`
 - `--R`
+- `--gaussian-noise`
+- `--noise-mean`
+- `--noise-sd`
+- `--seed`
 - `--output-dir`
 
 Example:
@@ -50,6 +54,21 @@ python 1d_landscapes/plot_landscapes.py \
   --ks 10,20,30 \
   --cs 0.1,0.2,0.4,0.8 \
   --R 60
+```
+
+Example with noisy `f5`:
+
+```bash
+python 1d_landscapes/plot_landscapes.py \
+  --family f5 \
+  --M 120 \
+  --ks 20 \
+  --cs 0.4 \
+  --R 60 \
+  --gaussian-noise \
+  --noise-mean 30 \
+  --noise-sd 10 \
+  --seed 123
 ```
 
 Outputs go by default to:
