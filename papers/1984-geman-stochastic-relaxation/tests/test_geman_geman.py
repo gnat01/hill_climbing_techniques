@@ -1,6 +1,6 @@
-import sys
-from pathlib import Path
 import unittest
+from pathlib import Path
+import sys
 
 import numpy as np
 

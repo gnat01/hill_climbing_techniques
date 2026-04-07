@@ -13,6 +13,49 @@ import numpy as np
 Array = np.ndarray
 
 
+def _accuracy_or_nan(state: Array, truth: Array | None) -> float:
+    return pixel_accuracy(state, truth) if truth is not None else float("nan")
+
+
+def _build_restoration_step(
+    *,
+    step_index: int,
+    temperature: float,
+    state: Array,
+    observation: Array,
+    eta: float,
+    coupling: float,
+    truth: Array | None,
+    changed_pixels: int,
+) -> "RestorationStep":
+    return RestorationStep(
+        step_index=step_index,
+        temperature=temperature,
+        energy=posterior_energy(state, observation, eta, coupling),
+        pixel_accuracy=_accuracy_or_nan(state, truth),
+        changed_pixels=changed_pixels,
+    )
+
+
+def _build_restoration_result(
+    *,
+    initial_state: Array,
+    state: Array,
+    observation: Array,
+    eta: float,
+    coupling: float,
+    truth: Array | None,
+    trajectory: list["RestorationStep"],
+) -> "RestorationResult":
+    return RestorationResult(
+        initial_state=initial_state.copy(),
+        final_state=state.copy(),
+        final_energy=posterior_energy(state, observation, eta, coupling),
+        final_accuracy=_accuracy_or_nan(state, truth),
+        trajectory=tuple(trajectory),
+    )
+
+
 def to_spin(image: Array) -> Array:
     """Convert a 0/1 image to -1/+1 spin representation."""
     return np.where(image > 0, 1, -1).astype(np.int8)
@@ -162,24 +205,27 @@ class GibbsImageRestorer:
                     changed_pixels += 1
                 state[row, col] = new_value
 
-            accuracy = pixel_accuracy(state, truth) if truth is not None else float("nan")
             trajectory.append(
-                RestorationStep(
+                _build_restoration_step(
                     step_index=sweep_index,
                     temperature=temperature,
-                    energy=posterior_energy(state, self.observation, self.eta, self.coupling),
-                    pixel_accuracy=accuracy,
+                    state=state,
+                    observation=self.observation,
+                    eta=self.eta,
+                    coupling=self.coupling,
+                    truth=truth,
                     changed_pixels=changed_pixels,
                 )
             )
 
-        final_accuracy = pixel_accuracy(state, truth) if truth is not None else float("nan")
-        return RestorationResult(
-            initial_state=initial_state.copy(),
-            final_state=state.copy(),
-            final_energy=posterior_energy(state, self.observation, self.eta, self.coupling),
-            final_accuracy=final_accuracy,
-            trajectory=tuple(trajectory),
+        return _build_restoration_result(
+            initial_state=initial_state,
+            state=state,
+            observation=self.observation,
+            eta=self.eta,
+            coupling=self.coupling,
+            truth=truth,
+            trajectory=trajectory,
         )
 
 
@@ -222,31 +268,38 @@ class DeterministicImageRestorer:
                     changed_pixels += 1
                 state[row, col] = new_value
 
-            accuracy = pixel_accuracy(state, truth) if truth is not None else float("nan")
             trajectory.append(
-                RestorationStep(
+                _build_restoration_step(
                     step_index=sweep_index,
                     temperature=0.0,
-                    energy=posterior_energy(state, self.observation, self.eta, self.coupling),
-                    pixel_accuracy=accuracy,
+                    state=state,
+                    observation=self.observation,
+                    eta=self.eta,
+                    coupling=self.coupling,
+                    truth=truth,
                     changed_pixels=changed_pixels,
                 )
             )
 
-        final_accuracy = pixel_accuracy(state, truth) if truth is not None else float("nan")
-        return RestorationResult(
-            initial_state=initial_state.copy(),
-            final_state=state.copy(),
-            final_energy=posterior_energy(state, self.observation, self.eta, self.coupling),
-            final_accuracy=final_accuracy,
-            trajectory=tuple(trajectory),
+        return _build_restoration_result(
+            initial_state=initial_state,
+            state=state,
+            observation=self.observation,
+            eta=self.eta,
+            coupling=self.coupling,
+            truth=truth,
+            trajectory=trajectory,
         )
 
 
 def fixed_temperature_schedule(temperature: float) -> Callable[[int], float]:
     if temperature <= 0.0:
         raise ValueError("temperature must be positive")
-    return lambda _: temperature
+
+    def schedule(_: int) -> float:
+        return temperature
+
+    return schedule
 
 
 def example_square(size: int = 32) -> Array:
