@@ -142,6 +142,20 @@ class TspSimulatedAnnealing:
         self.schedule_fn = schedule_fn
         self.rng = rng if rng is not None else random.Random()
 
+    def _transition(
+        self,
+        tour: Tour,
+        current_length: float,
+        step_index: int,
+    ) -> tuple[float, Tour, float, float, bool]:
+        temperature = self.schedule_fn(step_index)
+        proposed_tour = self.proposal_fn(tour, self.rng)
+        proposed_length = route_length(proposed_tour, self.distance_matrix)
+        delta = proposed_length - current_length
+        accept_prob = acceptance_probability(delta, temperature)
+        accepted = self.rng.random() < accept_prob
+        return temperature, proposed_tour, proposed_length, delta, accepted
+
     def run(self, initial_tour: Tour, steps: int) -> TspAnnealingResult:
         if steps < 0:
             raise ValueError("steps must be non-negative")
@@ -154,12 +168,11 @@ class TspSimulatedAnnealing:
         trajectory: List[TspAnnealingStep] = []
 
         for step_index in range(steps):
-            temperature = self.schedule_fn(step_index)
-            proposed_tour = self.proposal_fn(tour, self.rng)
-            proposed_length = route_length(proposed_tour, self.distance_matrix)
-            delta = proposed_length - current_length
-            accept_prob = acceptance_probability(delta, temperature)
-            accepted = self.rng.random() < accept_prob
+            temperature, proposed_tour, proposed_length, delta, accepted = self._transition(
+                tour,
+                current_length,
+                step_index,
+            )
 
             if accepted:
                 tour = proposed_tour
