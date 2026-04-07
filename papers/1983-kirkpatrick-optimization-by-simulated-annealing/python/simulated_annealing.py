@@ -103,6 +103,23 @@ class SimulatedAnnealingOptimizer(Generic[State]):
         self.schedule_fn = schedule_fn
         self.rng = rng if rng is not None else random.Random()
 
+    def _transition(
+        self,
+        state: State,
+        energy: float,
+        step_index: int,
+    ) -> tuple[float, State, float, float, bool]:
+        temperature = self.schedule_fn(step_index)
+        if temperature <= 0.0:
+            raise ValueError("schedule produced a non-positive temperature")
+
+        proposed_state = self.proposal_fn(state, self.rng)
+        proposed_energy = self.energy_fn(proposed_state)
+        delta_energy = proposed_energy - energy
+        accept_prob = acceptance_probability(delta_energy, temperature)
+        accepted = self.rng.random() < accept_prob
+        return temperature, proposed_state, proposed_energy, accept_prob, accepted
+
     def run(self, initial_state: State, steps: int) -> SimulatedAnnealingResult[State]:
         if steps < 0:
             raise ValueError("steps must be non-negative")
@@ -116,15 +133,12 @@ class SimulatedAnnealingOptimizer(Generic[State]):
         trajectory: List[SimulatedAnnealingStep[State]] = []
 
         for step_index in range(steps):
-            temperature = self.schedule_fn(step_index)
-            if temperature <= 0.0:
-                raise ValueError("schedule produced a non-positive temperature")
-
-            proposed_state = self.proposal_fn(state, self.rng)
-            proposed_energy = self.energy_fn(proposed_state)
+            temperature, proposed_state, proposed_energy, accept_prob, accepted = self._transition(
+                state,
+                energy,
+                step_index,
+            )
             delta_energy = proposed_energy - energy
-            accept_prob = acceptance_probability(delta_energy, temperature)
-            accepted = self.rng.random() < accept_prob
 
             if accepted:
                 state = proposed_state
@@ -176,7 +190,10 @@ def greedy_hill_climb(
     rng: Optional[random.Random] = None,
 ) -> SimulatedAnnealingResult[State]:
     local_rng = rng if rng is not None else random.Random()
-    always_cold = lambda _: 1.0e-12
+
+    def always_cold(_: int) -> float:
+        return 1.0e-12
+
     optimizer = SimulatedAnnealingOptimizer(
         energy_fn=energy_fn,
         proposal_fn=proposal_fn,
