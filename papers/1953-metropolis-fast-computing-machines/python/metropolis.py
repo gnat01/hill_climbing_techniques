@@ -66,7 +66,7 @@ class MetropolisSampler(Generic[State]):
         self.temperature = temperature
         self.rng = rng if rng is not None else random.Random()
 
-    def step(self, state: State) -> MetropolisStep[State]:
+    def _transition(self, state: State) -> tuple[State, float, bool, State, float, float, float]:
         current_energy = self.energy_fn(state)
         proposed_state = self.proposal_fn(state, self.rng)
         proposed_energy = self.energy_fn(proposed_state)
@@ -75,6 +75,26 @@ class MetropolisSampler(Generic[State]):
         accepted = self.rng.random() < accept_prob
         next_state = proposed_state if accepted else state
         next_energy = proposed_energy if accepted else current_energy
+        return (
+            next_state,
+            next_energy,
+            accepted,
+            proposed_state,
+            proposed_energy,
+            delta_energy,
+            accept_prob,
+        )
+
+    def step(self, state: State) -> MetropolisStep[State]:
+        (
+            next_state,
+            next_energy,
+            accepted,
+            proposed_state,
+            proposed_energy,
+            delta_energy,
+            accept_prob,
+        ) = self._transition(state)
         return MetropolisStep(
             step_index=-1,
             state=next_state,
@@ -94,23 +114,31 @@ class MetropolisSampler(Generic[State]):
         accepted_moves = 0
 
         for step_index in range(steps):
-            raw_step = self.step(state)
+            (
+                next_state,
+                next_energy,
+                accepted,
+                proposed_state,
+                proposed_energy,
+                delta_energy,
+                accept_prob,
+            ) = self._transition(state)
             step = MetropolisStep(
                 step_index=step_index,
-                state=raw_step.state,
-                energy=raw_step.energy,
-                accepted=raw_step.accepted,
-                proposed_state=raw_step.proposed_state,
-                proposed_energy=raw_step.proposed_energy,
-                delta_energy=raw_step.delta_energy,
-                acceptance_probability=raw_step.acceptance_probability,
+                state=next_state,
+                energy=next_energy,
+                accepted=accepted,
+                proposed_state=proposed_state,
+                proposed_energy=proposed_energy,
+                delta_energy=delta_energy,
+                acceptance_probability=accept_prob,
             )
             trajectory.append(step)
             state = step.state
             if step.accepted:
                 accepted_moves += 1
 
-        final_energy = self.energy_fn(state)
+        final_energy = trajectory[-1].energy if trajectory else self.energy_fn(state)
         acceptance_rate = accepted_moves / steps if steps else 0.0
         return MetropolisRunResult(
             initial_state=initial_state,

@@ -19,6 +19,7 @@ os.environ.setdefault("MPLCONFIGDIR", str(MPL_CONFIG_DIR))
 os.environ.setdefault("XDG_CACHE_HOME", str(PAPER_DIR / "benchmarks" / ".cache"))
 
 import matplotlib
+
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
@@ -45,6 +46,8 @@ DEFAULT_TEMPERATURES = [
     5.0,
     6.0,
 ]
+
+CSV_FIELDNAMES = ["temperature", "acceptance_rate", "mean_energy", "mean_abs_position"]
 
 
 def run_trial(temperature: float, seed: int, steps: int, burn_in: int) -> dict[str, float]:
@@ -94,10 +97,7 @@ def print_table(rows: list[dict[str, float]]) -> None:
 def write_csv(rows: list[dict[str, float]], output_path: Path) -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with output_path.open("w", newline="", encoding="utf-8") as handle:
-        writer = csv.DictWriter(
-            handle,
-            fieldnames=["temperature", "acceptance_rate", "mean_energy", "mean_abs_position"],
-        )
+        writer = csv.DictWriter(handle, fieldnames=CSV_FIELDNAMES)
         writer.writeheader()
         writer.writerows(rows)
 

@@ -1,8 +1,8 @@
+import unittest
 import math
+from pathlib import Path
 import random
 import sys
-from pathlib import Path
-import unittest
 
 
 PAPER_DIR = Path(__file__).resolve().parents[1]
